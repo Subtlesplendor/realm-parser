@@ -1,19 +1,16 @@
-app "example"
-    packages {
-        cli: "https://github.com/roc-lang/basic-cli/releases/download/0.5.0/Cufzl36_SnJ4QbOoEmiJ5dIpUxBvdB3NEySvuH82Wio.tar.br",
-        parser: "../package/main.roc",
-    }
-    imports [
-        cli.Stdout,
-        #cli.Stderr,
-        #parser.Parser.Advanced.Generic,
-        #parser.Parser.Advanced.Utf8,
-        #parser.Parser.Utf8.{ Parser, buildPrimitiveParser, fromState, RawStr, RawChar, string, map, keep, chompIf, chompWhile, skip, const, getChompedRawStr },
-        parser.Parser.Utf8.{ Parser } 
-    ]
-    provides [main] to cli
+app [main] {
+    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.5.0/Cufzl36_SnJ4QbOoEmiJ5dIpUxBvdB3NEySvuH82Wio.tar.br",
+    parser: "../package/main.roc",
+}
 
+import cli.Stdout
+# cli.Stderr,
+# parser.Parser.Advanced.Generic,
+# parser.Parser.Advanced.Utf8,
+# parser.Parser.Utf8.{ Parser, buildPrimitiveParser, fromState, RawStr, RawChar, string, map, keep, chompIf, chompWhile, skip, const, getChompedRawStr },
+import parser.Parser.Utf8 as Utf8 exposing [Parser]
 
+parse = Utf8.buildPrimitiveParser
 # Letter : [A, B, C, Other]
 
 # toLetter : RawChar -> Letter
@@ -38,14 +35,12 @@ app "example"
 
 # chomped = getChompedRawStr
 
-
 # letter : Parser (List Letter)
-# letter = 
+# letter =
 #     const toLetter
 #     |> skip everything
 #     |> keep chomped
 #     |> map toLetters
-    
 
 # letterParser : Parser Letter
 # letterParser =
