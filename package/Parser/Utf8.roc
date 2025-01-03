@@ -1,8 +1,7 @@
 module [
     Parser,
     DeadEnd,
-    RawStr,
-    RawChar, # Types
+    RawStr, # Types
     buildPrimitiveParser,
     run, # Operating
     const,
@@ -23,9 +22,8 @@ module [
     oneOf,
     between,
     sepBy,
-    ignore, # Combinators
-    chompIf,
-    chompWhile,
+    ignore,
+    next, # Combinators
     chompUntil,
     chompUntilEndOr,
     getChompedRawStr,
@@ -36,8 +34,6 @@ module [
     commit, # Backtracking
     loop, # Looping
     chompString,
-    chompChar,
-    keyword,
     string,
 ]
 
@@ -45,7 +41,6 @@ import Parser.Advanced.Utf8 as Advanced
 
 # -- PARSERS ------------------
 
-RawChar : Advanced.RawChar
 RawStr : Advanced.RawStr
 
 Parser value : Advanced.Parser Context Problem value
@@ -60,11 +55,11 @@ Context : {}
 # -- PROBLEMS ------------------
 
 Problem : [
-    UnexpectedRawChar,
     Expecting RawStr,
     ExpectingKeyword RawStr,
     ParsingFailure Str,
     ExpectingEnd,
+    OutOfBounds,
 ]
 
 buildPrimitiveParser : (State -> PStep v) -> Parser v
@@ -160,11 +155,10 @@ flatten : Parser (Result v Problem) -> Parser v
 flatten = \parser ->
     Advanced.flatten parser
 
-# ---- CHOMPERS -------
+# next : Parser {}
+next = Advanced.next OutOfBounds
 
-chompIf : (RawChar -> Bool) -> Parser {}
-chompIf = \isGood ->
-    Advanced.chompIf isGood UnexpectedRawChar
+# ---- CHOMPERS -------
 
 getChompedRawStr : Parser * -> Parser RawStr
 getChompedRawStr = \parser ->
@@ -173,10 +167,6 @@ getChompedRawStr = \parser ->
 mapChompedRawStr : Parser a, (RawStr, a -> b) -> Parser b
 mapChompedRawStr = \parser, mapper ->
     Advanced.mapChompedRawStr parser mapper
-
-chompWhile : (RawChar -> Bool) -> Parser {}
-chompWhile = \isGood ->
-    Advanced.chompWhile isGood
 
 chompUntil : RawStr -> Parser {}
 chompUntil = \tok ->
@@ -226,19 +216,9 @@ toToken = \tok ->
 
 # Utf8 specific
 
-separators = [' ', '\n']
-
-keyword : RawStr -> Parser {}
-keyword = \rawstr ->
-    Advanced.keyword separators { tok: rawstr, expecting: ExpectingKeyword rawstr }
-
 chompString : RawStr -> Parser {}
 chompString = \raw ->
     token raw
-
-chompChar : RawChar -> Parser {}
-chompChar = \b ->
-    chompIf (\x -> x == b)
 
 rwstr : RawStr -> Parser RawStr
 rwstr = \raw ->

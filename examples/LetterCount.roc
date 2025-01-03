@@ -1,60 +1,73 @@
 app [main] {
-    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.5.0/Cufzl36_SnJ4QbOoEmiJ5dIpUxBvdB3NEySvuH82Wio.tar.br",
+    cli: platform "https://github.com/roc-lang/basic-cli/releases/download/0.17.0/lZFLstMUCUvd5bjnnpYromZJXkQUrdhbva4xdBInicE.tar.br",
     parser: "../package/main.roc",
 }
 
 import cli.Stdout
-# cli.Stderr,
-# parser.Parser.Advanced.Generic,
-# parser.Parser.Advanced.Utf8,
-# parser.Parser.Utf8.{ Parser, buildPrimitiveParser, fromState, RawStr, RawChar, string, map, keep, chompIf, chompWhile, skip, const, getChompedRawStr },
-import parser.Parser.Utf8 as Utf8 exposing [Parser]
 
-parse = Utf8.buildPrimitiveParser
-# Letter : [A, B, C, Other]
+import parser.Parser.Utf8 as Parser exposing [Parser]
 
-# toLetter : RawChar -> Letter
-# toLetter = \c ->
-#     when c is
-#         65 -> A
-#         66 -> B
-#         67 -> C
-#         _ -> Other
+Letter : [A, B, C, Other]
 
-# toLetters : RawStr -> List Letter
-# toLetters = \s -> s |> List.map toLetter
-# #Problem : [ParsingFailure Str]
+# testInput = "AAABBC"
 
-# isNotStar: RawChar -> Bool
-# isNotStar = \c -> c != 42
+parseA : Parser Letter
+parseA =
+    Parser.string "A"
+    |> Parser.map \_ -> A
 
-# always: RawChar -> Bool
-# always = \_ -> Bool.true
+parseB : Parser Letter
+parseB =
+    Parser.string "B"
+    |> Parser.map \_ -> B
 
-# everything = chompWhile always
+parseC : Parser Letter
+parseC =
+    Parser.string "C"
+    |> Parser.map \_ -> C
 
-# chomped = getChompedRawStr
+parseOther : Parser Letter
+parseOther =
+    Parser.next
+    |> Parser.map \_ -> Other
 
-# letter : Parser (List Letter)
-# letter =
-#     const toLetter
-#     |> skip everything
-#     |> keep chomped
-#     |> map toLetters
+letterParser : Parser Letter
+letterParser =
+    Parser.oneOf [
+        parseA,
+        parseB,
+        parseC,
+        parseOther,
+    ]
 
-# letterParser : Parser Letter
-# letterParser =
-#     buildPrimitiveParser \state ->
-#         input = state.src
-#         when input is
-#             [] -> Bad Bool.false (fromState state (ParsingFailure "Nothing to parse"))
-#             ['A', ..] -> Good Bool.false A {state & src: List.dropFirst input}
-#             ['B', ..] -> Good Bool.false B {state & src: List.dropFirst input}
-#             ['C', ..] -> Good Bool.false C {state & src: List.dropFirst input}
-#             _ -> Good Bool.false Other {state & src: List.dropFirst input}
+manyLettersParser : Parser (List Letter)
+manyLettersParser =
+    Parser.many letterParser
+
+expect
+    lettersInput = "AAAiBByAABBwBtCCCiAyArBBx" |> Str.toUtf8
+    # lettersInput = "ABiC" |> Str.toUtf8
+    res =
+        Parser.run manyLettersParser lettersInput
+        |> Result.map \lst ->
+            lst |> List.dropIf \l -> l == Other
+    res == Ok ([A, A, A, B, B, A, A, B, B, B, C, C, C, A, A, B, B])
 
 main =
-    Stdout.line "hello"
+    lettersInput = "AAAiBByAABBwBtCCCiAyArBBx" |> Str.toUtf8
+    # lettersInput = "A" |> Str.toUtf8
+    res =
+        Parser.run manyLettersParser lettersInput
+        |> Result.map \lst ->
+            lst |> List.dropIf \l -> l == Other
+    check =
+        res == Ok ([A, A, A, B, B, A, A, B, B, B, C, C, C, A, A, B, B])
+
+    if check then
+        Stdout.line "Test passed"
+    else
+        Stdout.line "Test failed"
+
 # main =
 #     lettersInput = "AAAiBByAABBwBtCCCiAyArBBx"
 #     ifLetterA = \l -> l == A

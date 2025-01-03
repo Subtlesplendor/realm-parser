@@ -24,6 +24,7 @@ module [
     oneOrMore,
     alt,
     oneOf,
+    next,
     between,
     sepBy,
     ignore, # Combinators
@@ -141,6 +142,15 @@ keep = \parserFunc, parserArg ->
 skip : Parser c i p keep, Parser c i p ignore -> Parser c i p keep
 skip = \parserKeep, parserSkip ->
     map2 parserKeep parserSkip (\k, _ -> k)
+
+next : p -> Parser * * p {}
+next = \p ->
+    @Parser \s ->
+        if s.offset == List.len s.src then
+            Err { stack: fromState s p, backtrackable: Yes }
+        else
+            newState = { s & offset: s.offset + 1 }
+            Ok ({ val: {}, state: newState, backtrackable: Yes })
 
 andThen : Parser c i p a, (a -> Parser c i p b) -> Parser c i p b
 andThen = \@Parser firstParser, parserBuilder ->

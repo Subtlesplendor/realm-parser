@@ -5,7 +5,6 @@ module [
     Token,
     State,
     PStep,
-    RawChar,
     RawStr, # Types
     buildPrimitiveParser,
     run, # Operating
@@ -25,11 +24,10 @@ module [
     oneOrMore,
     alt,
     oneOf,
+    next,
     between,
     sepBy,
     ignore, # Combinators
-    chompIf,
-    chompWhile,
     chompUntil,
     chompUntilEndOr,
     getChompedRawStr,
@@ -39,24 +37,24 @@ module [
     backtrackable,
     commit, # Backtracking
     loop, # Looping
-    keyword,
 ]
 
 import Parser.Advanced.Generic as Generic
 
 # -- PARSERS ------------------
 
-RawChar : U8
+# A raw string is a list of bytes. Subcollections of these bytes
+# represent different Utf8 characters.
 RawStr : List U8
 
-State context : Generic.State context RawChar
-PStep context problem value : Generic.PStep context RawChar problem value
+State context : Generic.State context U8
+PStep context problem value : Generic.PStep context U8 problem value
 
-Parser context problem value : Generic.Parser context RawChar problem value
+Parser context problem value : Generic.Parser context U8 problem value
 
 DeadEnd context problem : Generic.DeadEnd context problem
 
-Token p : Generic.Token RawChar p
+Token p : Generic.Token U8 p
 
 # -- RUN ------------------
 buildPrimitiveParser : (State c -> PStep c p v) -> Parser c p v
@@ -84,7 +82,7 @@ end : p -> Parser * p {}
 end = \expecting ->
     Generic.end expecting
 
-# # -- COMBINATORS ----------
+# -- COMBINATORS ----------
 
 map : Parser c p a, (a -> b) -> Parser c p b
 map = \parser, mapper ->
@@ -142,11 +140,10 @@ flatten : Parser c p (Result v p) -> Parser c p v
 flatten = \parser ->
     Generic.flatten parser
 
-# # ---- CHOMPERS -------
+next : p -> Parser * p {}
+next = Generic.next
 
-chompIf : (RawChar -> Bool), p -> Parser * p {}
-chompIf = \isGood, expecting ->
-    Generic.chompIf isGood expecting
+# ---- CHOMPERS -------
 
 getChompedRawStr : Parser c p * -> Parser c p RawStr
 getChompedRawStr = \parser ->
@@ -156,10 +153,6 @@ mapChompedRawStr : Parser c p a, (RawStr, a -> b) -> Parser c p b
 mapChompedRawStr = \parser, mapper ->
     Generic.mapChompedSource parser mapper
 
-chompWhile : (RawChar -> Bool) -> Parser c p {}
-chompWhile = \isGood ->
-    Generic.chompWhile isGood
-
 chompUntil : Token p -> Parser * p {}
 chompUntil = \tok ->
     Generic.chompUntil tok
@@ -168,7 +161,7 @@ chompUntilEndOr : RawStr -> Parser c p {}
 chompUntilEndOr = \raw ->
     Generic.chompUntilEndOr raw
 
-# # -- LOOP ---------
+# -- LOOP ---------
 
 Step state a : Generic.Step state a
 
@@ -186,7 +179,7 @@ commit : a -> Parser * * a
 commit = \value ->
     Generic.commit value
 
-# # -- POSITION
+# -- POSITION
 
 getOffset : Parser * * U64
 getOffset =
@@ -201,7 +194,3 @@ getSource =
 token : Token p -> Parser * p {}
 token = \tok ->
     Generic.token tok
-
-keyword : List RawChar, Token p -> Parser * p {}
-keyword = \separators, tok ->
-    Generic.key separators tok

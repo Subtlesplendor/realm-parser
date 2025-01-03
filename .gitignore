@@ -1,2 +1,5 @@
 package/Parser/.DS_Store
 package/.DS_Store
+
+examples/*
+!examples/*.roc
