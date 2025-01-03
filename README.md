@@ -1,6 +1,8 @@
 # realm-parser
 A port of Elm's Parser library to Roc, empowered by Roc's type system.
 
+If you are interested in a generic Roc parser library, see also [roc-parser](https://github.com/lukewilliamboswell/roc-parser), maintained by [Luke Boswell](https://github.com/lukewilliamboswell), which is easier to use, more stable and as been more thoroughly tested than this package.
+
 ## Structure
 The most advanced parser is Advanced.Generic.Parser. It is as general as possible, and has as much functionality as possible.
 
