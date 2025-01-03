@@ -1,5 +1,5 @@
 # realm-parser
-A port of Elm's Parser library to Roc, empowered by Roc's type system.
+A port of Elm's Parser library to Roc, empowered by Roc's type system. https://www.roc-lang.org/
 
 If you are interested in a generic Roc parser library, see also [roc-parser](https://github.com/lukewilliamboswell/roc-parser), maintained by [Luke Boswell](https://github.com/lukewilliamboswell), which is easier to use, more stable and as been more thoroughly tested than this package.
 
