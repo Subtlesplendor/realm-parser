@@ -24,9 +24,11 @@ module [
     sepBy,
     ignore,
     next, # Combinators
+    chompIf,
     chompUntil,
     chompUntilEndOr,
     getChompedRawStr,
+    getChompedStr,
     mapChompedRawStr, # Chompers
     getOffset,
     getSource, # Info
@@ -35,6 +37,10 @@ module [
     loop, # Looping
     chompString,
     string,
+    digit,
+    decimal,
+    alpha,
+    alphaNumeric,
 ]
 
 import Parser.Advanced.Utf8 as Advanced
@@ -58,6 +64,7 @@ Problem : [
     Expecting RawStr,
     ExpectingKeyword RawStr,
     ParsingFailure Str,
+    BadUtf8,
     ExpectingEnd,
     OutOfBounds,
 ]
@@ -164,9 +171,22 @@ getChompedRawStr : Parser * -> Parser RawStr
 getChompedRawStr = \parser ->
     Advanced.getChompedRawStr parser
 
+getChompedStr : Parser * -> Parser Str
+getChompedStr = \parser ->
+    parser
+    |> getChompedRawStr
+    |> map \rawstr -> Str.fromUtf8 rawstr
+    |> map \res ->
+        res |> Result.mapErr \_ -> BadUtf8
+    |> flatten
+
 mapChompedRawStr : Parser a, (RawStr, a -> b) -> Parser b
 mapChompedRawStr = \parser, mapper ->
     Advanced.mapChompedRawStr parser mapper
+
+chompIf : (U8 -> Bool) -> Parser {}
+chompIf = \predicate ->
+    Advanced.chompIf predicate (ParsingFailure "Byte does not match predicate.")
 
 chompUntil : RawStr -> Parser {}
 chompUntil = \tok ->
@@ -231,6 +251,41 @@ string = \str ->
     |> rwstr
     |> map rawStrToStr
     |> flatten
+
+alpha : Parser Str
+alpha =
+    chompIf \b ->
+        (b >= 65 && b <= 90) # capital letters
+        || (b >= 97 && b <= 122) # small letters
+    |> oneOrMore
+    |> getChompedStr
+
+alphaNumeric : Parser Str
+alphaNumeric =
+    chompIf \b ->
+        (b >= 65 && b <= 90) # capital letters
+        || (b >= 97 && b <= 122) # small letters
+        || (b >= 48 && b <= 57)
+    |> oneOrMore
+    |> getChompedStr
+
+digit : Parser RawStr
+digit =
+    Advanced.digit (ParsingFailure "Expecting digit.")
+
+expect
+    input = "1" |> Str.toUtf8
+    run digit input == Ok input
+
+decimal : Parser Str
+decimal =
+    string "."
+    |> between (oneOrMore digit) (oneOrMore digit)
+    |> getChompedStr
+
+expect
+    input = "132.1234" |> Str.toUtf8
+    run decimal input == Ok "132.1234"
 
 # --- Internal -------
 

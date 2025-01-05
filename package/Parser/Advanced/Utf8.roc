@@ -28,6 +28,7 @@ module [
     between,
     sepBy,
     ignore, # Combinators
+    chompIf,
     chompUntil,
     chompUntilEndOr,
     getChompedRawStr,
@@ -37,6 +38,7 @@ module [
     backtrackable,
     commit, # Backtracking
     loop, # Looping
+    digit,
 ]
 
 import Parser.Advanced.Generic as Generic
@@ -145,6 +147,9 @@ next = Generic.next
 
 # ---- CHOMPERS -------
 
+chompIf : (U8 -> Bool), p -> Parser * p {}
+chompIf = Generic.chompIf
+
 getChompedRawStr : Parser c p * -> Parser c p RawStr
 getChompedRawStr = \parser ->
     Generic.getChompedSource parser
@@ -194,3 +199,9 @@ getSource =
 token : Token p -> Parser * p {}
 token = \tok ->
     Generic.token tok
+
+# -- UTF8 SPECIFIC
+# digit : p -> Parser * p RawStr
+digit = \prob ->
+    chompIf (\b -> b >= 48 && b <= 57) prob
+    |> getChompedRawStr
