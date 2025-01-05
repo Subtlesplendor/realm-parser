@@ -1,20 +1,23 @@
 module [
+    # Types
     Parser,
     DeadEnd,
-    RawStr, # Types
+    # Operating
     buildPrimitiveParser,
-    run, # Operating
+    run,
+    # Primitives
     const,
     fail,
     problem,
     end,
-    token, # Primitives
+    token,
+    # Combinators
     map,
     map2,
     keep,
     skip,
     andThen,
-    flatten, # Combinators
+    flatten,
     lazy,
     many,
     oneOrMore,
@@ -23,18 +26,23 @@ module [
     between,
     sepBy,
     ignore,
-    next, # Combinators
+    next,
+    # Chompers
     chompIf,
     chompUntil,
     chompUntilEndOr,
-    getChompedRawStr,
+    getChompedUtf8,
     getChompedStr,
-    mapChompedRawStr, # Chompers
+    mapChompedUtf8,
+    # Info
     getOffset,
-    getSource, # Info
+    getSource,
+    # Backtracking
     backtrackable,
-    commit, # Backtracking
-    loop, # Looping
+    commit,
+    # Looping
+    loop,
+    # Utf8 specific
     chompString,
     string,
     digit,
@@ -43,26 +51,23 @@ module [
     alphaNumeric,
 ]
 
-import Parser.Advanced.Utf8 as Advanced
+import Parser.Advanced.Generic as A
 
 # -- PARSERS ------------------
 
-RawStr : Advanced.RawStr
+Parser value : A.Parser Context U8 Problem value
 
-Parser value : Advanced.Parser Context Problem value
+State : A.State Context U8
+PStep value : A.PStep Context U8 Problem value
 
-State : Advanced.State Context
-PStep value : Advanced.PStep Context Problem value
-
-DeadEnd : Advanced.DeadEnd Context Problem
+DeadEnd : A.DeadEnd Context Problem
 
 Context : {}
 
 # -- PROBLEMS ------------------
 
 Problem : [
-    Expecting RawStr,
-    ExpectingKeyword RawStr,
+    Expecting (List U8),
     ParsingFailure Str,
     BadUtf8,
     ExpectingEnd,
@@ -70,19 +75,19 @@ Problem : [
 ]
 
 buildPrimitiveParser : (State -> PStep v) -> Parser v
-buildPrimitiveParser = Advanced.buildPrimitiveParser
+buildPrimitiveParser = A.buildPrimitiveParser
 
 # -- RUN ------------------
-run : Parser a, RawStr -> Result a (List DeadEnd)
+run : Parser a, List U8 -> Result a (List DeadEnd)
 run = \parser, input ->
-    when Advanced.run parser input is
-        Ok value ->
-            Ok value
+    if (Str.fromUtf8 input |> Result.isOk) then
+        A.run parser input
+        |> Result.mapErr \problems ->
+            problems |> List.map problemToDeadEnd
+    else
+        Err [{ offset: 0, problem: BadUtf8, contextStack: [] }]
 
-        Err problems ->
-            Err (problems |> List.map problemToDeadEnd)
-
-problemToDeadEnd : Advanced.DeadEnd Context _ -> DeadEnd
+problemToDeadEnd : A.DeadEnd Context _ -> DeadEnd
 problemToDeadEnd = \d ->
     { offset: d.offset, problem: d.problem, contextStack: [] }
 
@@ -90,160 +95,160 @@ problemToDeadEnd = \d ->
 
 const : v -> Parser v
 const = \value ->
-    Advanced.const value
+    A.const value
 
 problem : Str -> Parser *
 problem = \msg ->
-    Advanced.problem (ParsingFailure msg)
+    A.problem (ParsingFailure msg)
 
 fail : Parser *
 fail =
-    Advanced.fail
+    A.fail
 
 end : Parser {}
 end =
-    Advanced.end ExpectingEnd
+    A.end ExpectingEnd
 
 # -- COMBINATORS ----------
 
 map : Parser a, (a -> b) -> Parser b
 map = \parser, mapper ->
-    Advanced.map parser mapper
+    A.map parser mapper
 
 map2 : Parser a, Parser b, (a, b -> d) -> Parser d
 map2 = \first, second, mapper ->
-    Advanced.map2 first second mapper
+    A.map2 first second mapper
 
 keep : Parser (a -> b), Parser a -> Parser b
 keep = \parserFunc, parser ->
-    Advanced.keep parserFunc parser
+    A.keep parserFunc parser
 
 skip : Parser keep, Parser ignore -> Parser keep
 skip = \parserKeep, parserSkip ->
-    Advanced.skip parserKeep parserSkip
+    A.skip parserKeep parserSkip
 
 andThen : Parser a, (a -> Parser b) -> Parser b
 andThen = \parser, parserBuilder ->
-    Advanced.andThen parser parserBuilder
+    A.andThen parser parserBuilder
 
 alt : Parser v, Parser v -> Parser v
 alt = \first, second ->
-    Advanced.alt first second
+    A.alt first second
 
 oneOf : List (Parser v) -> Parser v
 oneOf = \parsers ->
-    Advanced.oneOf parsers
+    A.oneOf parsers
 
 lazy : ({} -> Parser v) -> Parser v
 lazy = \thunk ->
-    Advanced.lazy thunk
+    A.lazy thunk
 
 many : Parser v -> Parser (List v)
 many = \parser ->
-    Advanced.many parser
+    A.many parser
 
 oneOrMore : Parser v -> Parser (List v)
 oneOrMore = \parser ->
-    Advanced.oneOrMore parser
+    A.oneOrMore parser
 
 between : Parser v, Parser *, Parser * -> Parser v
 between = \parser, open, close ->
-    Advanced.between parser open close
+    A.between parser open close
 
 sepBy : Parser v, Parser * -> Parser (List v)
 sepBy = \parser, separator ->
-    Advanced.sepBy parser separator
+    A.sepBy parser separator
 
 ignore : Parser v -> Parser {}
 ignore = \parser ->
-    Advanced.ignore parser
+    A.ignore parser
 
 flatten : Parser (Result v Problem) -> Parser v
 flatten = \parser ->
-    Advanced.flatten parser
+    A.flatten parser
 
 # next : Parser {}
-next = Advanced.next OutOfBounds
+next = A.next OutOfBounds
 
 # ---- CHOMPERS -------
 
-getChompedRawStr : Parser * -> Parser RawStr
-getChompedRawStr = \parser ->
-    Advanced.getChompedRawStr parser
+getChompedUtf8 : Parser * -> Parser (List U8)
+getChompedUtf8 = \parser ->
+    A.getChompedSource parser
 
 getChompedStr : Parser * -> Parser Str
 getChompedStr = \parser ->
     parser
-    |> getChompedRawStr
+    |> getChompedUtf8
     |> map \rawstr -> Str.fromUtf8 rawstr
     |> map \res ->
         res |> Result.mapErr \_ -> BadUtf8
     |> flatten
 
-mapChompedRawStr : Parser a, (RawStr, a -> b) -> Parser b
-mapChompedRawStr = \parser, mapper ->
-    Advanced.mapChompedRawStr parser mapper
+mapChompedUtf8 : Parser a, (List U8, a -> b) -> Parser b
+mapChompedUtf8 = \parser, mapper ->
+    A.mapChompedSource parser mapper
 
 chompIf : (U8 -> Bool) -> Parser {}
 chompIf = \predicate ->
-    Advanced.chompIf predicate (ParsingFailure "Byte does not match predicate.")
+    A.chompIf predicate (ParsingFailure "Byte does not match predicate.")
 
-chompUntil : RawStr -> Parser {}
+chompUntil : List U8 -> Parser {}
 chompUntil = \tok ->
-    Advanced.chompUntil (toToken tok)
+    A.chompUntil (toToken tok)
 
-chompUntilEndOr : RawStr -> Parser {}
+chompUntilEndOr : List U8 -> Parser {}
 chompUntilEndOr = \raw ->
-    Advanced.chompUntilEndOr raw
+    A.chompUntilEndOr raw
 
 # -- LOOP ---------
 
-Step state a : Advanced.Step state a
+Step state a : A.Step state a
 
 loop : state, (state -> Parser (Step state a)) -> Parser a
 loop = \state, callback ->
-    Advanced.loop state callback
+    A.loop state callback
 
 # -- BACKTRACKABLE ---------
 
 backtrackable : Parser a -> Parser a
 backtrackable = \parser ->
-    Advanced.backtrackable parser
+    A.backtrackable parser
 
 commit : a -> Parser a
 commit = \value ->
-    Advanced.commit value
+    A.commit value
 
 # -- POSITION
 
 getOffset : Parser U64
 getOffset =
-    Advanced.getOffset
+    A.getOffset
 
-getSource : Parser RawStr
+getSource : Parser (List U8)
 getSource =
-    Advanced.getSource
+    A.getSource
 
 # -- TOKEN
 
-token : RawStr -> Parser {}
+token : List U8 -> Parser {}
 token = \tok ->
-    Advanced.token (tok |> toToken)
+    A.token (tok |> toToken)
 
-toToken : RawStr -> Advanced.Token Problem
+toToken : List U8 -> A.Token U8 Problem
 toToken = \tok ->
     { tok, expecting: Expecting tok }
 
 # Utf8 specific
 
-chompString : RawStr -> Parser {}
+chompString : List U8 -> Parser {}
 chompString = \raw ->
     token raw
 
-rwstr : RawStr -> Parser RawStr
+rwstr : List U8 -> Parser (List U8)
 rwstr = \raw ->
     chompString raw
-    |> getChompedRawStr
+    |> getChompedUtf8
 
 string : Str -> Parser Str
 string = \str ->
@@ -269,9 +274,10 @@ alphaNumeric =
     |> oneOrMore
     |> getChompedStr
 
-digit : Parser RawStr
+digit : Parser (List U8)
 digit =
-    Advanced.digit (ParsingFailure "Expecting digit.")
+    chompIf (\b -> b >= 48 && b <= 57)
+    |> getChompedUtf8
 
 expect
     input = "1" |> Str.toUtf8
@@ -289,11 +295,11 @@ expect
 
 # --- Internal -------
 
-rawStrToStr : RawStr -> Result Str Problem
+rawStrToStr : List U8 -> Result Str Problem
 rawStrToStr = \raw ->
     Result.onErr (Str.fromUtf8 raw) \_ ->
         Err (ParsingFailure "Failed to create Str from raw string (List U8).")
 
-strToRawStr : Str -> RawStr
+strToRawStr : Str -> List U8
 strToRawStr = \str ->
     Str.toUtf8 str

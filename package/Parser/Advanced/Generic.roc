@@ -241,16 +241,16 @@ flatten = \@Parser parser ->
             Err p ->
                 Err { stack: fromState s1 p, backtrackable: b1 }
 
-# followedBy : Parser c i p a, Parser c i p * -> Parser c i p a
+# followedBy : Parser c i p (List a), Parser c i p a -> Parser c i p (List a)
 # followedBy = \@Parser parser, @Parser follows ->
-#     @Parser \s ->
-#         step = try (parser s)
+#    @Parser \s ->
+#        step = try (parser s)
 
-#         when (follows step.state) is
-#             Ok _ ->
-#                 Ok step
-#             Err err ->
-#                 Err err
+#        when (follows step.state) is
+#            Ok _ ->
+#                Ok step
+#            Err err ->
+#                Err err
 
 # after: Parser c i p a, Parser c i p (List a) -> Parser c i p (List a)
 # after = \@Parser first, @Parser second ->
