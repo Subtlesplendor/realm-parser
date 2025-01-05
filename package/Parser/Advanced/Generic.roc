@@ -1,24 +1,28 @@
-module [
+module { source } -> [
+    # Types
     Parser,
     DeadEnd,
     Token,
     State,
     PStep,
-    Step, # Types
+    Step,
+    # Operating
     buildPrimitiveParser,
-    run, # Operating
+    run,
+    # Primitives
     const,
     fail,
     problem,
     end,
     token,
-    key, # Primitives
+    key,
+    # Combinators
     map,
     map2,
     keep,
     skip,
     andThen,
-    flatten, # Combinators
+    flatten,
     lazy,
     many,
     oneOrMore,
@@ -27,19 +31,23 @@ module [
     next,
     between,
     sepBy,
-    ignore, # Combinators
+    ignore,
     chompIf,
+    # Chompers
     chompWhile,
     chompUntil,
     chompUntilEndOr,
     getChompedSource,
-    mapChompedSource, # Chompers
+    mapChompedSource,
     getOffset,
     getSource,
-    inContext, # Context
+    # Context
+    inContext,
+    # Backtracking
     backtrackable,
-    commit, # Backtracking
-    loop, # Looping
+    commit,
+    # Looping
+    loop,
 ]
 
 ## A parser library based on the Elm parser library.
@@ -55,9 +63,9 @@ module [
 # -- TYPES ------------------
 
 Parser context input problem value :=
-    State context input -> PStep context input problem value
+    State context -> PStep context input problem value
 
-State context input : { src : List input, offset : U64, contextStack : List (Located context) }
+State context : { offset : U64, contextStack : List (Located context) }
 
 Located context : { offset : U64, context : context }
 
@@ -80,19 +88,15 @@ and = \b1, b2 ->
 # -- OPERATING ------------
 
 # Construct a parser from a parser-function.
-buildPrimitiveParser : (State c i -> PStep c i p v) -> Parser c i p v
+buildPrimitiveParser : (State c -> PStep c i p v) -> Parser c i p v
 buildPrimitiveParser = \f ->
     @Parser f
 
 # Run a parser and get a Result.
-run : Parser c i p v, List i -> Result v (List (DeadEnd c p))
-run = \@Parser parse, src ->
-    when parse { src, offset: 0, contextStack: [] } is
-        Ok good ->
-            Ok good.val
-
-        Err bad ->
-            Err bad.stack
+run : Parser c i p v -> Result v (List (DeadEnd c p))
+run = \@Parser parse ->
+    parse { offset: 0, contextStack: [] }
+    |> Result.mapBoth (\good -> good.val) (\bad -> bad.stack)
 
 # -- PRIMITIVES -----------
 
@@ -111,7 +115,7 @@ fail =
 end : p -> Parser * * p {}
 end = \p ->
     @Parser \state ->
-        if state.offset == List.len state.src then
+        if state.offset == List.len source then
             Ok { val: {}, state, backtrackable: Yes }
         else
             Err { stack: fromState state p, backtrackable: Yes }
@@ -146,7 +150,7 @@ skip = \parserKeep, parserSkip ->
 next : p -> Parser * * p {}
 next = \p ->
     @Parser \s ->
-        if s.offset == List.len s.src then
+        if s.offset == List.len source then
             Err { stack: fromState s p, backtrackable: Yes }
         else
             newState = { s & offset: s.offset + 1 }
@@ -271,7 +275,7 @@ flatten = \@Parser parser ->
 chompIf : (i -> Bool), p -> Parser * i p {}
 chompIf = \isGood, expecting ->
     @Parser \s ->
-        when s.src |> List.get s.offset is
+        when source |> List.get s.offset is
             Ok i ->
                 if i |> isGood then
                     Ok { val: {}, state: { s & offset: s.offset + 1 }, backtrackable: No }
@@ -295,7 +299,8 @@ mapChompedSource = \@Parser parse, f ->
             Num.toU64Checked (s1.offset - s0.offset)
             |> Result.withDefault 0
 
-        chomped = s0.src |> List.sublist { start: s0.offset, len: length }
+        chomped : List i
+        chomped = source |> List.sublist { start: s0.offset, len: length }
         Ok {
             val: f chomped a,
             state: s1,
@@ -307,7 +312,7 @@ chompWhile = \isGood ->
     @Parser \s ->
         initialPos = s.offset
         finalPos =
-            s.src
+            source
             |> List.walkFromUntil s.offset initialPos \p, c ->
                 if isGood c then
                     Continue (p + 1)
@@ -323,7 +328,7 @@ chompWhile = \isGood ->
 chompUntil : Token i p -> Parser * i p {} where i implements Eq
 chompUntil = \{ tok, expecting } ->
     @Parser \s ->
-        when findSubSource tok s.offset s.src is
+        when findSubSource tok s.offset source is
             Ok newOffset ->
                 Ok {
                     val: {},
@@ -338,7 +343,7 @@ chompUntilEndOr : List i -> Parser * i * {} where i implements Eq
 chompUntilEndOr = \lst ->
     @Parser \s ->
         initialOffset = s.offset
-        when findSubSource lst initialOffset s.src is
+        when findSubSource lst initialOffset source is
             Ok newOffset ->
                 Ok {
                     val: {},
@@ -347,7 +352,7 @@ chompUntilEndOr = \lst ->
                 }
 
             Err _ ->
-                adjustedOffset = List.len s.src
+                adjustedOffset = List.len source
                 Ok {
                     val: {},
                     state: { s & offset: adjustedOffset },
@@ -363,7 +368,7 @@ inContext = \@Parser parse, context ->
         step = try (parse (s0 |> changeContext contextStack))
         Ok { step & state: step.state |> changeContext s0.contextStack }
 
-changeContext : State c i, List (Located c) -> State c i
+changeContext : State c, List (Located c) -> State c
 changeContext = \s, newContext ->
     { s & contextStack: newContext }
 
@@ -403,7 +408,7 @@ getOffset =
 getSource : Parser * i * (List i)
 getSource =
     @Parser \s ->
-        Ok { val: s.src, state: s, backtrackable: Yes }
+        Ok { val: source, state: s, backtrackable: Yes }
 # -- TOKEN & SYMBOL
 
 Token i p : { tok : List i, expecting : p }
@@ -411,7 +416,7 @@ Token i p : { tok : List i, expecting : p }
 token : Token i p -> Parser * i p {} where i implements Eq
 token = \{ tok, expecting } ->
     @Parser \s ->
-        when isSubSource tok s.offset s.src is
+        when isSubSource tok s.offset source is
             Ok newOffset ->
                 Ok {
                     val: {},
@@ -425,16 +430,16 @@ token = \{ tok, expecting } ->
 key : List i, Token i p -> Parser * i p {} where i implements Eq
 key = \separators, { tok, expecting } ->
     @Parser \s ->
-        when isSubSource tok s.offset s.src is
+        when isSubSource tok s.offset source is
             Ok newOffset ->
-                if newOffset == (s.src |> List.len) then
+                if newOffset == (source |> List.len) then
                     Ok {
                         val: {},
                         state: { s & offset: newOffset },
                         backtrackable: if List.isEmpty tok then Yes else No,
                     }
                 else
-                    when s.src |> List.get newOffset is
+                    when source |> List.get newOffset is
                         Err OutOfBounds ->
                             Err { stack: fromState s expecting, backtrackable: Yes }
 
@@ -454,11 +459,11 @@ key = \separators, { tok, expecting } ->
 # -- LOW LEVEL ---------
 
 isSubSource : List i, U64, List i -> Result U64 [OutOfBounds] where i implements Eq
-isSubSource = \smallSrc, offset, bigSrc ->
-    if offset + List.len smallSrc <= List.len bigSrc then
-        smallSrc
+isSubSource = \smallsource, offset, bigsource ->
+    if offset + List.len smallsource <= List.len bigsource then
+        smallsource
         |> List.walkTry offset \p, c ->
-            char = try (List.get bigSrc p)
+            char = try (List.get bigsource p)
 
             if c == char then
                 Ok (p + 1)
@@ -468,21 +473,21 @@ isSubSource = \smallSrc, offset, bigSrc ->
         Err OutOfBounds
 
 findSubSource : List i, U64, List i -> Result U64 [OutOfBounds] where i implements Eq
-findSubSource = \smallSrc, offset, bigSrc ->
-    smallLen = List.len smallSrc
+findSubSource = \smallsource, offset, bigsource ->
+    smallLen = List.len smallsource
 
-    if offset + smallLen <= List.len bigSrc then
+    if offset + smallLen <= List.len bigsource then
         finalPos =
-            bigSrc
+            bigsource
             |> List.walkFromUntil offset offset \p, _ ->
-                subSrc = List.sublist bigSrc { start: p, len: smallLen }
+                subsource = List.sublist bigsource { start: p, len: smallLen }
 
-                if smallSrc == subSrc then
+                if smallsource == subsource then
                     Break (p + 1)
                 else
                     Continue (p + 1)
 
-        if finalPos == List.len bigSrc then
+        if finalPos == List.len bigsource then
             Err OutOfBounds
         else
             Ok finalPos
@@ -491,12 +496,12 @@ findSubSource = \smallSrc, offset, bigSrc ->
 
 # ---- INTERNAL HELPER FUNCTIONS -------
 
-fromState : State c *, p -> List (DeadEnd c p)
+fromState : State c, p -> List (DeadEnd c p)
 fromState = \s, p ->
     [{ offset: s.offset, problem: p, contextStack: s.contextStack }]
 
 # Helper function for many and oneOrMore
-manyImpl : Parser c i p a, List a, State c i, Backtrackable -> PStep c i p (List a)
+manyImpl : Parser c i p a, List a, State c, Backtrackable -> PStep c i p (List a)
 manyImpl = \@Parser parser, vals, s, b ->
     when parser s is
         Err { backtrackable: b1, stack: _ } ->
@@ -523,7 +528,7 @@ sepBy1 = \parser, separator ->
     |> keep (many parserFollowedBySep)
 
 # Helper function for loop
-loopHelp : Backtrackable, state, (state -> Parser c i p (Step state a)), State c i -> PStep c i p a
+loopHelp : Backtrackable, state, (state -> Parser c i p (Step state a)), State c -> PStep c i p a
 loopHelp = \b, state, callback, s0 ->
     (@Parser parse) = callback state
     when parse s0 is

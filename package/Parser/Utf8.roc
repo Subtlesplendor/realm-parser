@@ -281,7 +281,7 @@ digit =
 
 expect
     testInput = "1" |> Str.toUtf8
-    run digit testInput == Ok input
+    run digit testInput == Ok testInput
 
 decimal : Parser Str
 decimal =
