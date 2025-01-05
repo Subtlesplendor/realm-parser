@@ -280,8 +280,8 @@ digit =
     |> getChompedUtf8
 
 expect
-    input = "1" |> Str.toUtf8
-    run digit input == Ok input
+    testInput = "1" |> Str.toUtf8
+    run digit testInput == Ok input
 
 decimal : Parser Str
 decimal =
@@ -290,8 +290,8 @@ decimal =
     |> getChompedStr
 
 expect
-    input = "132.1234" |> Str.toUtf8
-    run decimal input == Ok "132.1234"
+    testInput = "132.1234" |> Str.toUtf8
+    run decimal testInput == Ok "132.1234"
 
 # --- Internal -------
 
